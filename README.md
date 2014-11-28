@@ -1,7 +1,7 @@
 activity-logger
 ===============
 
-Log what workspace your on and the active window
+Log what workspace you're on and the active window.
 
 # About
 I have multiple clients, and I have each client on their own workspace.  I wanted
