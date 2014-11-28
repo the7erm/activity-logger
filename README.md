@@ -91,7 +91,6 @@ Personal | firefox | Raw Mako template included in another in Pylons - Stack Ove
 Personal | firefox | Redirect to a Different URL using the Meta Tag "Refresh": Web Site Maintenance: Tools and Guides: IU Webmaster: Indiana University - Mozilla Firefox | 00:00:20
 Personal | firefox | SQLAlchemy: how to filter date field? - Stack Overflow - Mozilla Firefox | 00:01:15
 Personal | firefox | Search — Mako 1.0.0 Documentation - Mozilla Firefox | 00:00:15
-Personal | firefox | Sesamii error:404 - theerm@gmail.com - Gmail - Mozilla Firefox | 00:00:20
 Personal | firefox | Sqlalchemy -- Group by a relationship field - Stack Overflow - Mozilla Firefox | 00:00:40
 Personal | firefox | Strapdown.js - Instant and elegant Markdown documents - Mozilla Firefox | 00:06:35
 Personal | firefox | Syntax — Mako 1.0.0 Documentation - Mozilla Firefox | 00:02:50
