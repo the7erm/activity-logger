@@ -123,15 +123,8 @@ def get_xlsclients():
 def get_open_windows(desktop_number=None, only_active=False):
     
     """
-    wmctrl -l
-    0x00e00004 -1 erm xfce4-panel
-    0x01000003 -1 erm Desktop
-    0x03600004  0 erm erm@erm: ~/git/activity-logger
-    0x01e00016  0 erm /home/erm/btsync/phone/keepass/erm-keepass.kdb (locked) - KeePassX
-    0x01e00071  0 erm /home/erm/btsync/phone/keepass/erm-keepass.kdb
-    0x04a00064  0 erm Buddy List
-    0x03a00003  0 erm ~/git/activity-logger/ROADMAP.md  (sesamii-api) - Sublime Text 2
-    0x0320007f  0 erm linux get list of open windows - Google Search - Mozilla Firefox
+    wmctrl -lp
+    0x0387af21  3 2893   erm Source of: file:///home/erm/git/activity-logger/reports/2014-11-28/daily.html - Mozilla Firefox
     """
 
     output = check_output(['wmctrl', '-lp'])
@@ -148,36 +141,44 @@ def get_open_windows(desktop_number=None, only_active=False):
         match = RE_WMCTRL_OPEN_PROGRAMS.match(l)
         # print "match:",match
         if match:
-            title = match.group(5)
-            title_lower = title.lower()
-            if 'credit' in title_lower:
-                title = "(Private Browsing)"
-            if 'bank' in title_lower:
-                title = "(Private Browsing)"
-            if 'gmail' in title_lower and 'inbox' in title_lower:
-                title = "Gmail"
-            if '(Private Browsing)' in title:
-                title = "(Private Browsing)"
-            # print "TITLE:",type(title)
-            if not isinstance(title, unicode):
-                # print "title:", title
-                title = title.decode("utf-8")
-            # title = title.encode('utf-8', 'xmlcharrefreplace')
-            #    print "SKIPPING:", title
-            #    continue
-            # print match.groups()
+            window_id = match.group(1)
             group_desktop_number = int(match.group(2))
+            pid = match.group(3)
+            user = match.group(4)
+            title = match.group(5)
+            
+            active = bool(active_pid == pid)
+            # Only process active window
+            if only_active and not active:
+                continue
+
+            # Only process pids that are on the current desktop
             if desktop_number is not None and \
                group_desktop_number != desktop_number:
                 continue
-            # print_r(clients.keys())
-            # print match.groups()
-            window_id = match.group(1)
-            pid = match.group(3)
 
-            active = bool(active_pid == pid)
-            if only_active and not active:
+            if pid in processed_pids:
+                # Only process a pid once. Some process have more than 1
+                # window.
                 continue
+            processed_pids.append(pid)
+
+            # Convert the title so it'll play nicely with sqlite.
+            if not isinstance(title, unicode):
+                title = title.decode("utf-8")
+
+            title_lower = title.lower()
+            for find, replace in REPLACE_RULES:
+                if isinstance(find, str):
+                    if find.lower() in title_lower:
+                        # print "REPLACE:", title, "=>", replace
+                        title = replace
+                        break
+                elif find.match(title):
+                    # print "REPLACE:", title, "=>", replace
+                    title = replace
+                    break
+
             proc_path = os.path.join("/proc", pid)
             exe_path = os.path.join(proc_path, 'exe')
             cmd_path = os.path.join(proc_path, 'cmdline')
@@ -186,26 +187,25 @@ def get_open_windows(desktop_number=None, only_active=False):
             with open(cmd_path,'r') as fp:
                 command_line = fp.read()
                 command_line = command_line.rstrip("\x00")
-            # link = os.readlink(realpath)
+            
             command = os.path.basename(realpath)
-            # ('0x00e00004', '-1', '2958', 'erm', 'xfce4-panel')
             
             window_data = {
                 "window_id": window_id,
                 "desktop_number": group_desktop_number,
                 "pid": pid,
-                "user": match.group(4),
+                "user": user,
                 "window_title": title,
                 "command": command,
                 "active": active,
                 "command_line": command_line
             }
-            if pid in processed_pids:
-                # print "PID PRESENT:", pid
-                # print_r(window_data)
-                continue
-            processed_pids.append(pid)
+            
             open_windows.append(window_data)
+            if only_active:
+                # Save processing we only need to get the first one
+                # If only_active is set.
+                break
 
     return open_windows
 
@@ -454,13 +454,12 @@ IDLE_THRESHOLD = 90
 DEBUG = False
 TIME_BETWEEN_CHECKS = 10
 
-HIDE_RULES = [
-    "banking",
-    "\(Private Browsing\)"
-]
-
+# string/regex, replacement
 REPLACE_RULES = [
-    ("Inbox \\\d+\\ .* Gmail", "Inbox - Gmail")
+    (re.compile("Inbox \(\d+\) .* Gmail"), "Inbox - Gmail"),
+    ("(Private Browsing)", "--hidden--"),
+    ("banking", "--hidden--"),
+    ("western vista", "--hidden--")
 ]
 
 now = datetime.now()
