@@ -1,0 +1,4 @@
+activity.db
+*.pyc
+*.sublime*
+reports/*

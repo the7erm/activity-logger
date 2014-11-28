@@ -1,0 +1,31 @@
+<%inherit file="base.html"/>
+<%block name="markdown">
+# ${title}
+
+<%text filter="h">
+#### By Desktop
+</%text>
+Desktop | Time
+------- | -----
+% for day in daily_activity:
+${day[0]} | ${hh_mm_ss(day[2])}
+% endfor
+
+<%text filter="h">
+#### By Desktop & Program
+</%text>
+Desktop | Command | Time 
+------- | ------- | -----
+% for item in by_command:
+${item[1]} | ${basename(item[2]).replace("\x00"," ")} | ${hh_mm_ss(item[3])}
+% endfor
+
+<%text filter="h">
+#### By Desktop & Window
+</%text>
+Desktop | Command | Window Title | Time
+------- | ------- | ----- | -----
+% for item in itemized:
+${item[1]} | ${basename(item[2]).replace("\x00"," ")} | ${item[3].replace("|","&#124;")} | ${hh_mm_ss(item[4])}
+% endfor
+</%block>
