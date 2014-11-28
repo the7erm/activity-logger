@@ -17,7 +17,7 @@ how long.  Currently it generates daily reports every minute.
 It uses http://strapdownjs.com/ to generate the markdown.
 
 
-## Sample of daily.html
+## Sample output of daily.html
 
 # Daily Activity 2014-11-28
 #### By Desktop
