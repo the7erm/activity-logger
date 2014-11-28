@@ -2,30 +2,17 @@
 <%block name="markdown">
 # ${title}
 
+
+% for data in by:
 <%text filter="h">
-#### By Desktop
+#### </%text>${data['title']}<%text filter="h">
 </%text>
-Desktop | Time
-------- | -----
-% for day in daily_activity:
-${day[0]} | ${hh_mm_ss(day[2])}
+${" | ".join(data['cols'])}
+${" | ".join(make_dashes(data['cols']))}
+% for row in data['data']:
+${print_row(row, data['cols'])}
+% endfor
 % endfor
 
-<%text filter="h">
-#### By Desktop & Program
-</%text>
-Desktop | Command | Time 
-------- | ------- | -----
-% for item in by_command:
-${item[1]} | ${basename(item[2]).replace("\x00"," ")} | ${hh_mm_ss(item[3])}
-% endfor
 
-<%text filter="h">
-#### By Desktop & Window
-</%text>
-Desktop | Command | Window Title | Time
-------- | ------- | ----- | -----
-% for item in itemized:
-${item[1]} | ${basename(item[2]).replace("\x00"," ")} | ${item[3].replace("|","&#124;")} | ${hh_mm_ss(item[4])}
-% endfor
 </%block>

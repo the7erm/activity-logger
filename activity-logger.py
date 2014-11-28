@@ -247,52 +247,153 @@ def report():
             print "-[ %s ]-" % _date
         print hh_mm_ss(a[2]), a[0]
 
-def write_report():
-
+def workspace_active_data():
     spec = and_(ActivityLog.date == date.today(), 
                 ActivityLog.command != "idle")
-    daily = session.query(ActivityLog.workspace, ActivityLog.date,
-                             func.sum(ActivityLog.seconds))\
-                      .filter(spec)\
-                      .group_by(ActivityLog.date, 
-                                ActivityLog.workspace)
+    cols = ['Workspace', 'Time']
+    title = "Workspace - Active"
+    res = session.query(ActivityLog.workspace, 
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.date, 
+                           ActivityLog.workspace)
+    return {
+        "title": title,
+        "cols": cols,
+        "data": res
+    }
+
+def workspace_command_title_data():
+    spec = and_(ActivityLog.date == date.today())
+    cols = ['Workspace', 'Command', 'Title', 'Time']
+    title = "Workspace, Command and Title"
+    res = session.query(ActivityLog.workspace, 
+                        ActivityLog.command, 
+                        ActivityLog.title,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace,
+                           ActivityLog.command,
+                           ActivityLog.title)
+    return {
+        "title": title,
+        "cols": cols,
+        "data": res
+    }
+
+def workspace_command_data():
+    spec = and_(ActivityLog.date == date.today())
+    cols =   ['Workspace', 'Command', 'Time']
+    
+    title = "Workspace & Command"
+    res = session.query(ActivityLog.workspace, 
+                        ActivityLog.command,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace,
+                           ActivityLog.command)
+
+    return {
+        "title": title,
+        "cols": cols,
+        "data": res
+    }
+
+def workspace_hour_data_active():
+    spec = and_(ActivityLog.date == date.today(),
+                ActivityLog.command != "idle")
+    cols =   ['Workspace', 'Hour', 'Time']
+    title = "Workspace & Hour - Active"
+    res = session.query(ActivityLog.workspace, 
+                        ActivityLog.hour,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace,
+                           ActivityLog.hour)
+
+    return {
+        "title": title,
+        "cols": cols,
+        "data": res
+    }
+
+def make_dashes(cols):
+    dashes = []
+    for col in cols:
+        dashes.append("-"*len(col))
+    return dashes
+
+def command_data():
+    spec = and_(ActivityLog.date == date.today())
+    cols = ['Command', 'Time']
+    title = "Command"
+    res = session.query(ActivityLog.command,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.command)
+    return {
+        "title": title,
+        "cols": cols,
+        "data": res
+    }
+
+
+def print_row(row, cols):
+    # print "ROW:",row
+    # print "COLS",cols
+    data = []
+    for i, col in enumerate(row):
+
+        col_title = cols[i]
+        if col_title == 'Time':
+            data.append(hh_mm_ss(col))
+            continue
+        if col_title == 'Hour':
+            data.append("%02d:00" % col)
+            continue
+
+        if col_title == 'Command':
+            basename = os.path.basename(col).replace("\x00", " ")
+            parts = basename.split(" ")
+            basename = parts[0]
+            data.append(basename)
+
+            continue
+
+        _str =  "%s" % col
+        _str = _str.replace("|", "&#124;")
+        data.append(_str)
+    return " | ".join(data)
+    
+
+def write_report():
+
+    by = []
+    by.append(workspace_active_data())
+    by.append(workspace_hour_data_active())
+    by.append(workspace_command_data())
+    by.append(command_data())
+    by.append(workspace_command_title_data())
 
     mylookup = TemplateLookup(directories=['templates'], 
                               output_encoding='utf-8', 
                               encoding_errors='replace')
 
     DAILY_TEMPLATE = mylookup.get_template("daily.html")
+    
+    title = "Daily Activity %s" % date.today()
+
+    html = DAILY_TEMPLATE.render(title=title,
+                                 hh_mm_ss=hh_mm_ss, 
+                                 by=by,
+                                 basename=os.path.basename,
+                                 make_dashes=make_dashes,
+                                 print_row=print_row)
 
     report_dir = os.path.join("reports/","%s" % date.today() )
     report_file = os.path.join(report_dir, "daily.html")
     if not os.path.exists(report_dir):
         os.makedirs(report_dir, 0o777)
-
-    spec = and_(ActivityLog.date == date.today())
-    itemized = session.query(ActivityLog.date, ActivityLog.workspace, 
-                             ActivityLog.command, ActivityLog.title,
-                             func.sum(ActivityLog.seconds))\
-                      .filter(spec)\
-                      .group_by(ActivityLog.date, 
-                                ActivityLog.workspace,
-                                ActivityLog.command,
-                                ActivityLog.title)
-
-    spec = and_(ActivityLog.date == date.today())
-    by_command = session.query(ActivityLog.date, ActivityLog.workspace, 
-                               ActivityLog.command,
-                               func.sum(ActivityLog.seconds))\
-                        .filter(spec)\
-                        .group_by(ActivityLog.date, 
-                                  ActivityLog.workspace,
-                                  ActivityLog.command)
-    
-    html = DAILY_TEMPLATE.render(daily_activity=daily, 
-                                 title="Daily Activity %s" % date.today(),
-                                 hh_mm_ss=hh_mm_ss, 
-                                 itemized=itemized,
-                                 by_command=by_command,
-                                 basename=os.path.basename)
 
     with open(report_file, 'w') as fp:
         fp.write(html)
@@ -349,6 +450,7 @@ TIME_BETWEEN_CHECKS = 10
 now = datetime.now()
 write_report()
 while True:
+    # write_report()
     idle_sec = get_idle()
     active_desktop_number, active_desktop = get_active_desktop()
     active_windows = get_open_windows(active_desktop_number, True)
