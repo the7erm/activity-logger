@@ -373,5 +373,6 @@ while True:
 
     if now.minute != datetime.now().minute:
         write_report()
+        now = datetime.now()
 
     sleep(TIME_BETWEEN_CHECKS)
