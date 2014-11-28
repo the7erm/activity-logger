@@ -149,6 +149,13 @@ def get_open_windows(desktop_number=None, only_active=False):
         # print "match:",match
         if match:
             title = match.group(5)
+            title_lower = title.lower()
+            if 'credit' in title_lower:
+                title = "(Private Browsing)"
+            if 'bank' in title_lower:
+                title = "(Private Browsing)"
+            if 'gmail' in title_lower and 'inbox' in title_lower:
+                title = "Gmail"
             if '(Private Browsing)' in title:
                 title = "(Private Browsing)"
             # print "TITLE:",type(title)
@@ -446,6 +453,15 @@ def log_append_activity(current_activity):
 IDLE_THRESHOLD = 90
 DEBUG = False
 TIME_BETWEEN_CHECKS = 10
+
+HIDE_RULES = [
+    "banking",
+    "\(Private Browsing\)"
+]
+
+REPLACE_RULES = [
+    ("Inbox \\\d+\\ .* Gmail", "Inbox - Gmail")
+]
 
 now = datetime.now()
 write_report()
