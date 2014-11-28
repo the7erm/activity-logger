@@ -5,8 +5,8 @@ Log what workspace you're on and the active window.
 
 # About
 I have multiple clients, and I have each client on their own workspace.  I wanted
-to know where my time was going automatically.  __ If someone else was doing this
-to me I'd consider it spyware. So DON'T install it on someone else's account. __
+to know where my time was going automatically.  **If someone else was doing this
+to me I'd consider it spyware. So DON'T install it on someone else's account.**
 
 # How to use.
 ``` 
