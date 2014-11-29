@@ -3,6 +3,8 @@
 # ${title}
 
 
+<a href="../${yesterday}/daily.html"> &lt; ${yesterday}</a> ${today} <a href="../${tomorrow}/daily.html">${tomorrow} &gt;</a>
+
 % for data in by:
 <%text filter="h">
 #### </%text>${data['title']}<%text filter="h">
@@ -14,5 +16,6 @@ ${print_row(row, data['cols'])}
 % endfor
 % endfor
 
+<a href="../${yesterday}/daily.html"> &lt; ${yesterday}</a> ${today} <a href="../${tomorrow}/daily.html">${tomorrow} &gt;</a>
 
 </%block>

@@ -12,7 +12,7 @@ from sqlalchemy.sql import select, func, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy import create_engine
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import sessionmaker
 from mako.template import Template
 from mako.lookup import TemplateLookup
@@ -371,22 +371,100 @@ def print_row(row, cols):
         _str = _str.replace("|", "&#124;")
         data.append(_str)
     return " | ".join(data)
+
+def weekly_breakdown():
+    today = date.today()
+    _7_days_ago = today - timedelta(days=7)
+    days_ago = _7_days_ago
+    spec = and_(ActivityLog.command != "idle",
+                ActivityLog.date >= _7_days_ago)
+    cols =   ['Workspace']
+    dates = []
+
+    title = "Weekly - Active"
+    res = session.query(ActivityLog.workspace, 
+                        ActivityLog.date,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace,
+                           ActivityLog.date)\
+                 .order_by(ActivityLog.date.asc(), ActivityLog.workspace.asc())
+
+    date_data = {}
+    
+
+    for r in res:
+        _date = r.date.strftime("%Y-%m-%d %a")
+        if _date not in cols:
+            cols.append(_date)
+        if _date not in dates:
+            dates.append(_date)
+        if r.workspace not in date_data:
+            date_data[r.workspace] = {}
+        print_r(r)
+        date_data[r.workspace][_date] = hh_mm_ss(r[2])
+
+    for workspace in date_data:
+        print "workspace:", workspace
+        for _date in dates:
+            if _date not in date_data[workspace]:
+                date_data[workspace][_date] = " "
+
+    """
+    {u'Hacking': {'2014-11-28 Fri': '00:00:40', '2014-11-29 Sat': ' '},
+     u'Personal': {'2014-11-28 Fri': '05:01:05', '2014-11-29 Sat': '00:40:20'},
+     u'Programing': {'2014-11-28 Fri': '02:51:50', '2014-11-29 Sat': ' '},
+     u'Sesamii': {'2014-11-28 Fri': '00:34:15', '2014-11-29 Sat': ' '},
+     u'Task': {'2014-11-28 Fri': '01:58:05', '2014-11-29 Sat': '00:54:20'}}
+    """
+
+    print_r(date_data)
+    date_data_formatted = []
+    for workspace in date_data:
+        row = [workspace]
+        for _date in date_data[workspace]:
+            row.append(date_data[workspace][_date])
+        date_data_formatted.append(row)
+        print " | ".join(row)
+
+    print_r(date_data_formatted)
+    """
+    GOAL
+                | Sun   | Mon | Tue | Wed | Thru | Fri | Sat
+    ------------| ----- | --- | --- | --- | ---- | --- | ---
+    workspace 1 | 00:00 |
+    workspace 2 |
+    workspace 3 |
+    """
+
+    return {
+        "title": title,
+        "cols": cols,
+        "data": date_data_formatted
+    }
     
 
 def write_report():
 
     by = []
+    by.append(weekly_breakdown())
     by.append(workspace_active_data())
     by.append(workspace_hour_data_active())
     by.append(workspace_command_data())
     by.append(command_data())
     by.append(workspace_command_title_data())
+    # print_r(weekly_breakdown())
 
     mylookup = TemplateLookup(directories=['templates'], 
                               output_encoding='utf-8', 
                               encoding_errors='replace')
 
     DAILY_TEMPLATE = mylookup.get_template("daily.html")
+
+    today = date.today()
+    one_day = timedelta(days=1)
+    yesterday = today - one_day
+    tomorrow = today + one_day
     
     title = "Daily Activity %s" % date.today()
 
@@ -395,7 +473,10 @@ def write_report():
                                  by=by,
                                  basename=os.path.basename,
                                  make_dashes=make_dashes,
-                                 print_row=print_row)
+                                 print_row=print_row,
+                                 yesterday=yesterday,
+                                 today=today,
+                                 tomorrow=tomorrow)
 
     report_dir = os.path.join("reports/","%s" % date.today() )
     report_file = os.path.join(report_dir, "daily.html")
