@@ -259,7 +259,7 @@ def workspace_active_data():
                 ActivityLog.command != "idle")
     cols = ['Workspace', 'Time']
     title = "Workspace - Active"
-    res = session.query(ActivityLog.workspace, 
+    res = session.query(ActivityLog.workspace,
                         func.sum(ActivityLog.seconds))\
                  .filter(spec)\
                  .group_by(ActivityLog.date, 
@@ -422,7 +422,10 @@ def weekly_breakdown():
     date_data_formatted = []
     for workspace in date_data:
         row = [workspace]
-        for _date in date_data[workspace]:
+        keys = date_data[workspace].keys()
+        keys = sorted(keys)
+        print "keys:", keys
+        for _date in keys:
             row.append(date_data[workspace][_date])
         date_data_formatted.append(row)
         print " | ".join(row)
