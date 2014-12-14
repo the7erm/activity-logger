@@ -79,12 +79,12 @@ def print_r(obj):
     pprint.pprint(obj)
 
 def get_idle():
-    idle_ms = int(check_output(['xprintidle']))
+    idle_ms = int(safe_check_output(*['xprintidle']))
     idle_sec = floor(idle_ms / 1000)
     return int(idle_sec)
 
 def get_active_desktop():
-    output = check_output(['wmctrl', '-d'])
+    output = safe_check_output(*['wmctrl', '-d'])
     lines = output.split("\n")
     # 0  * DG: 1280x720  VP: 0,0  WA: 0,43 2960x857  Personal
 
@@ -96,7 +96,7 @@ def get_active_desktop():
                 return int(match.group(1)), match.group(7)
 
 def get_xlsclients():
-    output = check_output(['xlsclients', '-la'])
+    output = safe_check_output(*['xlsclients', '-la'])
     """
     Window 0x4600206:
       Machine:  erm
@@ -136,12 +136,6 @@ def get_open_windows(desktop_number=None, only_active=False):
     0x0387af21  3 2893   erm Source of: file:///home/erm/git/activity-logger/reports/2014-11-28/daily.html - Mozilla Firefox
     """
 
-    output = check_output(['wmctrl', '-lp'])
-    lines = output.split("\n")
-    # 0  * DG: 1280x720  VP: 0,0  WA: 0,43 2960x857  Personal
-    # clients = get_xlsclients()
-    # print_r(clients)
-    open_windows = []
     try:
         active_pid = check_output(["xdotool", 
                                    "getwindowfocus", 
@@ -151,6 +145,12 @@ def get_open_windows(desktop_number=None, only_active=False):
         if only_active:
             return []
 
+    output = safe_check_output(*['wmctrl', '-lp'])
+    lines = output.split("\n")
+    # 0  * DG: 1280x720  VP: 0,0  WA: 0,43 2960x857  Personal
+    # clients = get_xlsclients()
+    # print_r(clients)
+    open_windows = []
     processed_pids = []
     for l in lines:
         match = RE_WMCTRL_OPEN_PROGRAMS.match(l)
@@ -228,7 +228,7 @@ def get_open_windows(desktop_number=None, only_active=False):
 
 def report():
     ESC = chr(27)
-    print "{ESC}[2J{ESC}[0;0H".format(ESC=ESC)
+    # print "{ESC}[2J{ESC}[0;0H".format(ESC=ESC)
     print "*"*20
 
     activity = session.query(ActivityLog.workspace, 
@@ -460,6 +460,19 @@ def weekly_breakdown():
         "cols": cols,
         "data": date_data_formatted
     }
+
+def get_yesterday():
+    spec = and_(ActivityLog.date < date.today())
+    res = session.query(ActivityLog.date)\
+                 .filter(spec)\
+                 .group_by(ActivityLog.date)\
+                 .order_by(ActivityLog.date.desc())\
+                 .first()
+
+    print "yesterday:", res[0]
+    if res:
+        return res[0]
+    return None
     
 
 def write_report():
@@ -481,8 +494,10 @@ def write_report():
 
     today = date.today()
     one_day = timedelta(days=1)
-    yesterday = today - one_day
+
+    yesterday = get_yesterday()
     tomorrow = today + one_day
+
     
     title = "Daily Activity %s" % date.today()
 
