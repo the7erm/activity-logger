@@ -624,12 +624,19 @@ def weeks_match(date1, date2):
 
 
 def get_all_days_with_activity():
-    res = session.query(ActivityLog.date)\
-                 .group_by(ActivityLog.date)\
-                 .order_by(ActivityLog.date.asc())
+    low_date = session.query(ActivityLog.date)\
+                      .order_by(ActivityLog.date.asc())\
+                      .first()
+
+    high_date = session.query(ActivityLog.date)\
+                      .order_by(ActivityLog.date.desc())\
+                      .first()
+
     days = []
-    for day in res:
-        days.append(day[0])
+    _date = low_date.date
+    while _date <= high_date.date:
+        days.append(_date)
+        _date += timedelta(days=1)
     return days
 
 
