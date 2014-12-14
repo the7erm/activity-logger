@@ -400,9 +400,13 @@ def print_row(row, cols):
             basename = os.path.basename(parts[0])
             space_parts = basename.split(" ")
             basename = space_parts[0]
-            if basename in ('python', 'python2', 'python3'):
+            if basename in ('python', 'python2', 'python3', 'bash', 'sh', 
+                            'ruby', 'perl'):
                 #   u'/usr/bin/python\x00/usr/bin/terminator' basename:u'python'
-                basename = os.path.basename(parts[1])
+                try:
+                    basename = os.path.basename(parts[1])
+                except IndexError:
+                    pass
                 # scontinue
             data.append("%s" % (basename,))
 
