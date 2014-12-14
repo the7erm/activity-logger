@@ -396,10 +396,15 @@ def print_row(row, cols):
             continue
 
         if col_title == 'Command':
-            basename = os.path.basename(col).replace("\x00", " ")
-            parts = basename.split(" ")
-            basename = parts[0]
-            data.append(basename)
+            parts = col.split("\x00")
+            basename = os.path.basename(parts[0])
+            space_parts = basename.split(" ")
+            basename = space_parts[0]
+            if basename in ('python', 'python2', 'python3'):
+                #   u'/usr/bin/python\x00/usr/bin/terminator' basename:u'python'
+                basename = os.path.basename(parts[1])
+                # scontinue
+            data.append("%s" % (basename,))
 
             continue
 
