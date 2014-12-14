@@ -1,0 +1,3 @@
+[submodule "strapdown"]
+	path = strapdown
+	url = git@github.com:arturadib/strapdown.git
