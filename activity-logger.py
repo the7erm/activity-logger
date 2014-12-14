@@ -632,9 +632,14 @@ def get_all_days_with_activity():
                       .order_by(ActivityLog.date.desc())\
                       .first()
 
+    if not low_date or not high_date:
+        return []
+
+    low, end_date = get_week_bounds(high_date[0])
+
     days = []
     _date = low_date.date
-    while _date <= high_date.date:
+    while _date <= end_date:
         days.append(_date)
         _date += timedelta(days=1)
     return days
