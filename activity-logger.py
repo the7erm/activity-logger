@@ -2,6 +2,7 @@
 from subprocess import check_output, CalledProcessError
 from time import sleep
 from math import floor
+from copy import deepcopy
 import re
 import pprint
 import os
@@ -226,7 +227,9 @@ def get_open_windows(desktop_number=None, only_active=False):
 
 
 
-def report():
+def report(today=None):
+    if today is None:
+        today = date.today()
     ESC = chr(27)
     # print "{ESC}[2J{ESC}[0;0H".format(ESC=ESC)
     print "*"*20
@@ -234,7 +237,7 @@ def report():
     activity = session.query(ActivityLog.workspace, 
                              ActivityLog.command,
                              func.sum(ActivityLog.seconds))\
-                      .filter(ActivityLog.date == date.today())\
+                      .filter(ActivityLog.date == today)\
                       .group_by(ActivityLog.workspace, 
                                 ActivityLog.command)
 
@@ -253,7 +256,7 @@ def report():
 
     print "%s %s" % (workspace, hh_mm_ss(total_seconds))
 
-    spec = and_(ActivityLog.date == date.today(), 
+    spec = and_(ActivityLog.date == today, 
                 ActivityLog.command != "idle")
     daily = session.query(ActivityLog.workspace, ActivityLog.date,
                              func.sum(ActivityLog.seconds))\
@@ -269,8 +272,11 @@ def report():
             print "-[ %s ]-" % _date
         print hh_mm_ss(a[2]), a[0]
 
-def workspace_active_data():
-    spec = and_(ActivityLog.date == date.today(), 
+def workspace_active_data(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date == today, 
                 ActivityLog.command != "idle")
     cols = ['Workspace', 'Time']
     title = "Workspace - Active"
@@ -285,8 +291,11 @@ def workspace_active_data():
         "data": res
     }
 
-def workspace_command_title_data():
-    spec = and_(ActivityLog.date == date.today())
+def workspace_command_title_data(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date == today)
     cols = ['Workspace', 'Command', 'Title', 'Time']
     title = "Workspace, Command and Title"
     res = session.query(ActivityLog.workspace, 
@@ -303,8 +312,11 @@ def workspace_command_title_data():
         "data": res
     }
 
-def workspace_command_data():
-    spec = and_(ActivityLog.date == date.today())
+def workspace_command_data(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date == today)
     cols =   ['Workspace', 'Command', 'Time']
     
     title = "Workspace & Command"
@@ -321,8 +333,11 @@ def workspace_command_data():
         "data": res
     }
 
-def workspace_hour_data_active():
-    spec = and_(ActivityLog.date == date.today(),
+def workspace_hour_data_active(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date == today,
                 ActivityLog.command != "idle")
     cols =   ['Workspace', 'Hour', 'Time']
     title = "Workspace & Hour - Active"
@@ -345,8 +360,11 @@ def make_dashes(cols):
         dashes.append("-"*len(col))
     return dashes
 
-def command_data():
-    spec = and_(ActivityLog.date == date.today())
+def command_data(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date == today)
     cols = ['Command', 'Time']
     title = "Command"
     res = session.query(ActivityLog.command,
@@ -365,8 +383,11 @@ def print_row(row, cols):
     # print "COLS",cols
     data = []
     for i, col in enumerate(row):
+        try:
+            col_title = cols[i]
+        except IndexError,err:
+            col_title = "IndexError:%s index:%i" % (err, i)
 
-        col_title = cols[i]
         if col_title == 'Time':
             data.append(hh_mm_ss(col))
             continue
@@ -387,13 +408,68 @@ def print_row(row, cols):
         data.append(_str)
     return " | ".join(data)
 
-def weekly_breakdown():
-    today = date.today()
-    _7_days_ago = today - timedelta(days=7)
-    days_ago = _7_days_ago
+
+def get_week_bounds(today=None):
+    if today is None:
+        today = date.today()
+    # For example, 2004 begins on a Thursday, so the first week of ISO year 2004 begins on Monday, 29 Dec 2003 and ends on Sunday, 4 Jan 2004, so that date(2003, 12, 29).isocalendar() == (2004, 1, 1) and date(2004, 1, 4).isocalendar() == (2004, 1, 7).
+
+    one_day = timedelta(days=1)
+    first_day = deepcopy(today)
+    last_day = deepcopy(today)
+    print "today:", today
+    if first_day.strftime("%w") == "0":
+        # The first day is Sunday
+        return first_day, (last_day + timedelta(days=6))
+
+    while weeks_match((first_day - one_day), today):
+        # count down days until the week changes
+        first_day = first_day - one_day
+
+    print (first_day - one_day).strftime("%W") == today.strftime("%W"),\
+          (first_day - one_day).strftime("%W"),' == ', today.strftime("%W")
+
+    while weeks_match((last_day + one_day), today):
+        # count up days until the week changes
+        last_day = last_day + one_day
+
+    print (last_day + one_day).strftime("%W") == today.strftime("%W"), \
+          (last_day + one_day).strftime("%W"),' == ', today.strftime("%W")
+
+    if first_day.strftime("%w") != "0":
+        first_day = first_day - one_day
+
+    last_day = last_day - one_day
+    print "first_day:", first_day.strftime("%c")
+    print "last_day:", last_day.strftime("%c")
+
+    return first_day, last_day
+
+def date_key(date, today=None):
+    if today is None:
+        today = date.today()
+
+    if date is None:
+        return ""
+
+    if date != today:
+        return date.strftime(
+            "<a href='../%Y-%m-%d/daily.html'>%Y-%m-%d %a</a>")
+    
+    return date.strftime("<a href='../%Y-%m-%d/daily.html'><b>%Y-%m-%d %a</b></a>")
+
+def weekly_breakdown(today=None):
+    if today is None:
+        today = date.today()
+
+    low, high = get_week_bounds(today=today)
+    print "low:", low
+    print "high:", high
+
     spec = and_(ActivityLog.command != "idle",
-                ActivityLog.date >= _7_days_ago)
-    cols =   ['Workspace']
+                ActivityLog.date >= low,
+                ActivityLog.date <= high)
+    cols = ['Workspace']
     dates = []
 
     title = "Weekly - Active"
@@ -406,22 +482,37 @@ def weekly_breakdown():
                  .order_by(ActivityLog.date.asc(), ActivityLog.workspace.asc())
 
     date_data = {}
-    
+    numdays = 7
+    date_list = [low + timedelta(days=x) for x in range(0, numdays)]
+    date_list = sorted(date_list)
+    print "date_list:", date_list
 
-    for r in res:
-        _date = r.date.strftime("%Y-%m-%d %a")
-        if _date not in cols:
-            cols.append(_date)
+    for d in date_list:
+        _date = date_key(d, today)
         if _date not in dates:
             dates.append(_date)
+
+        if _date not in cols:
+            cols.append(_date)
+
+    for r in res:
+        _date = date_key(r.date, today)
         if r.workspace not in date_data:
             date_data[r.workspace] = {}
+
         print_r(r)
-        date_data[r.workspace][_date] = hh_mm_ss(r[2])
+        date_data[r.workspace][_date] = "%s" % (hh_mm_ss(r[2]),)
+        if r.date == today:
+            date_data[r.workspace][_date] = "<b>%s</b>" % (hh_mm_ss(r[2]), )
+
 
     for workspace in date_data:
-        print "workspace:", workspace
         for _date in dates:
+            if _date not in date_data[workspace]:
+                date_data[workspace][_date] = " "
+
+        for d in date_list:
+            _date = date_key(d, today)
             if _date not in date_data[workspace]:
                 date_data[workspace][_date] = " "
 
@@ -439,7 +530,8 @@ def weekly_breakdown():
         row = [workspace]
         keys = date_data[workspace].keys()
         keys = sorted(keys)
-        print "keys:", keys
+        print "keys:", 
+        print_r(keys)
         for _date in keys:
             row.append(date_data[workspace][_date])
         date_data_formatted.append(row)
@@ -454,6 +546,8 @@ def weekly_breakdown():
     workspace 2 |
     workspace 3 |
     """
+    print "COLS"
+    print_r(cols)
 
     return {
         "title": title,
@@ -461,29 +555,95 @@ def weekly_breakdown():
         "data": date_data_formatted
     }
 
-def get_yesterday():
-    spec = and_(ActivityLog.date < date.today())
+def get_yesterday(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date < today)
     res = session.query(ActivityLog.date)\
                  .filter(spec)\
                  .group_by(ActivityLog.date)\
                  .order_by(ActivityLog.date.desc())\
                  .first()
 
-    print "yesterday:", res[0]
     if res:
+        print "yesterday:", res[0]
         return res[0]
     return None
-    
 
-def write_report():
+def get_tomorrow(today=None):
+    if today is None:
+        today = date.today()
+
+    spec = and_(ActivityLog.date > today)
+    res = session.query(ActivityLog.date)\
+                 .filter(spec)\
+                 .group_by(ActivityLog.date)\
+                 .order_by(ActivityLog.date.asc())\
+                 .first()
+
+    if res:
+        print "tomorrow:", res[0]
+        return res[0]
+    # _today = get.today()
+    # one_day = timedelta(days=1)
+    # tomorrow = today + one_day
+    return None
+
+def get_next_week(today=None):
+    if today is None:
+        today = date.today()
+
+    next_week = today + timedelta(days=7)
+    first, last = get_week_bounds(next_week)
+    first = first - timedelta(days=1)
+    day_with_activity = get_tomorrow(first)
+    return day_with_activity
+
+def get_last_week(today=None):
+    if today is None:
+        today = date.today()
+
+    last_week = today - timedelta(days=7)
+    first, last = get_week_bounds(last_week)
+    first = first - timedelta(days=1)
+    day_with_activity = get_tomorrow(first)
+    if day_with_activity == today:
+        return None
+    return day_with_activity
+
+
+def weeks_match(date1, date2):
+    if not isinstance(date1, date) or not isinstance(date2, date):
+        return False
+
+    if date1 == date2:
+        return True
+
+    return date1.strftime("%W") == date2.strftime("%W")
+
+
+def get_all_days_with_activity():
+    res = session.query(ActivityLog.date)\
+                 .group_by(ActivityLog.date)\
+                 .order_by(ActivityLog.date.asc())
+    days = []
+    for day in res:
+        days.append(day[0])
+    return days
+
+
+def write_report(today=None):
+    if today is None:
+        today = date.today()
 
     by = []
-    by.append(weekly_breakdown())
-    by.append(workspace_active_data())
-    by.append(workspace_hour_data_active())
-    by.append(workspace_command_data())
-    by.append(command_data())
-    by.append(workspace_command_title_data())
+    by.append(weekly_breakdown(today=today))
+    by.append(workspace_active_data(today=today))
+    by.append(workspace_hour_data_active(today=today))
+    by.append(workspace_command_data(today=today))
+    by.append(command_data(today=today))
+    by.append(workspace_command_title_data(today=today))
     # print_r(weekly_breakdown())
 
     mylookup = TemplateLookup(directories=['templates'], 
@@ -492,14 +652,16 @@ def write_report():
 
     DAILY_TEMPLATE = mylookup.get_template("daily.html")
 
-    today = date.today()
-    one_day = timedelta(days=1)
-
-    yesterday = get_yesterday()
-    tomorrow = today + one_day
-
     
-    title = "Daily Activity %s" % date.today()
+    
+
+    yesterday = get_yesterday(today=today)
+    tomorrow = get_tomorrow(today=today)
+    
+    title = "Daily Activity %s" % today
+
+    next_week = get_next_week(today)
+    last_week = get_last_week(today)
 
     html = DAILY_TEMPLATE.render(title=title,
                                  hh_mm_ss=hh_mm_ss, 
@@ -509,9 +671,11 @@ def write_report():
                                  print_row=print_row,
                                  yesterday=yesterday,
                                  today=today,
-                                 tomorrow=tomorrow)
+                                 tomorrow=tomorrow,
+                                 last_week=last_week,
+                                 next_week=next_week)
 
-    report_dir = os.path.join("reports/","%s" % date.today() )
+    report_dir = os.path.join("reports/","%s" % today)
     report_file = os.path.join(report_dir, "daily.html")
     if not os.path.exists(report_dir):
         os.makedirs(report_dir, 0o777)
@@ -575,6 +739,11 @@ REPLACE_RULES = [
     ("banking", "--hidden--"),
     ("western vista", "--hidden--")
 ]
+
+days = get_all_days_with_activity()
+for d in days:
+    print d
+    write_report(d)
 
 now = datetime.now()
 write_report()

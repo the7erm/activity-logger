@@ -3,7 +3,19 @@
 # ${title}
 
 
-<a href="../${yesterday}/daily.html"> &lt; ${yesterday}</a> ${today} <a href="../${tomorrow}/daily.html">${tomorrow} &gt;</a>
+% if last_week is not None:
+<a href="../${last_week}/daily.html">&lt;&lt;</a>
+% endif
+% if yesterday is not None:
+<a href="../${yesterday}/daily.html"> &lt; ${yesterday.strftime("%a %b %d")}</a>
+% endif 
+${today.strftime("%a %b %d")} 
+% if tomorrow is not None:
+<a href="../${tomorrow}/daily.html">${tomorrow.strftime("%a %b %d")} &gt;</a>
+% endif
+% if next_week is not None:
+<a href="../${next_week}/daily.html">&gt;&gt;</a>
+% endif
 
 % for data in by:
 <%text filter="h">
