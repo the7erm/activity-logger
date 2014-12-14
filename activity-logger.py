@@ -1,5 +1,5 @@
 #!/usr/bin/env python2
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from time import sleep
 from math import floor
 import re
@@ -120,6 +120,15 @@ def get_xlsclients():
 
     return clients
 
+def safe_check_output(*args, **kwargs):
+    try:
+        output = check_output(args)
+    except CalledProcessError, err:
+        print "CalledProcessError: %s %s" % (err, args)
+        return ""
+
+    return output
+
 def get_open_windows(desktop_number=None, only_active=False):
     
     """
@@ -133,9 +142,15 @@ def get_open_windows(desktop_number=None, only_active=False):
     # clients = get_xlsclients()
     # print_r(clients)
     open_windows = []
-    active_pid = check_output(["xdotool", 
-                               "getwindowfocus", 
-                               "getwindowpid"]).strip()
+    try:
+        active_pid = check_output(["xdotool", 
+                                   "getwindowfocus", 
+                                   "getwindowpid"]).strip()
+    except CalledProcessError:
+        active_pid = None
+        if only_active:
+            return []
+
     processed_pids = []
     for l in lines:
         match = RE_WMCTRL_OPEN_PROGRAMS.match(l)
