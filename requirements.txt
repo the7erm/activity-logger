@@ -1,0 +1,4 @@
+Flask==0.10.1
+Mako==0.9.1
+SQLAlchemy==0.8.4
+lockfile==0.10.2

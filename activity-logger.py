@@ -17,12 +17,15 @@ from mako.template import Template
 from mako.lookup import TemplateLookup
 import calendar
 import thread
-import threading
+
+import pid_handler
+
 from flask import Flask
 app = Flask(__name__)
 
 DAILY_TEMPLATE = Template(filename='templates/daily.html')
 INDEX_TEMPLATE = Template(filename='templates/index.html')
+LOCK_FILE = os.path.join(os.path.expanduser("~"), "activity-logger.lock")
 
 Base = declarative_base()
  
@@ -720,6 +723,43 @@ def get_all_days_with_activity(session=None):
     ssr(created, session)
     return days
 
+def monthly_breakdown(today=None, session=None):
+    created, session = _session(session)
+    _really_today = _today()
+    today = _today(today)
+    title = "Month Activity - %s" % today.strftime("%b %Y")
+    cols = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    rows = []
+    row = []
+
+    cal = calendar.Calendar(6)
+    cnt = 0
+    for t in cal.itermonthdates(today.year, today.month):
+        print("t:", t, type(t))
+        spec = and_(ActivityLog.date == t)
+        res = session.query(ActivityLog.date)\
+                     .filter(spec).count()
+        if cnt % 7 == 0 and len(row) != 0:
+            rows.append(row)
+            row = []
+        count = ""
+        if res > 0:
+            count = "(%s)" % res
+        day = "<a href='/%s/'>%s<br>%s</a>" % (t, t.day, count)
+        if t == _really_today:
+            day = "<a href='/%s/'>__%s<br>%s__</a>" % (t, t.day, count)
+        row.append(day)
+        cnt += 1
+
+    rows.append(row)
+    ssr(created, session)
+    return {
+        "title": title,
+        "cols": cols,
+        "data": rows
+    }
+
+
 def get_html(today=None, session=None, template="index.html"):
     today = _today(today)
     created, session = _session(session)
@@ -728,6 +768,7 @@ def get_html(today=None, session=None, template="index.html"):
         "session": session
     }
     by = []
+    by.append(monthly_breakdown(**kwargs))
     by.append(weekly_breakdown(**kwargs))
     by.append(workspace_active_data(**kwargs))
     by.append(workspace_hour_data_active(**kwargs))
@@ -878,23 +919,22 @@ for d in days:
     print d
     write_report(d)
 
-write_report()
-
-if 'thread_ident' not in locals():
-    print "STARTING NEW THREAD"
+pid_handler.pid_file = LOCK_FILE
+if not pid_handler.is_running():
+    print "="*100
+    print "STARTING THREAD"
+    print "="*100
+    pid_handler.write_pid()
     thread.start_new_thread(log_loop, ())
-    thread_ident = thread.get_ident()
 
 today = _today()
-cal = calendar.Calendar(6)
-for v in cal.itermonthdates(today.year, today.month):
-    print "V:",v
+
 print ("sys.argv", sys.argv)
 
+
+# write_report()
 def app_run():
     app.run(app.run(port=5001, debug=True))
 
-if __name__ == "__main__":
-    thread.start_new_thread(app_run, ())
-    while True:
-        sleep(1)
+if __name__ == "__main__":  
+    app_run()
