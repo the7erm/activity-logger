@@ -8,17 +8,21 @@ import pprint
 import os
 import sys
 from sqlalchemy import Column, ForeignKey, Integer, String, Date, DateTime,\
-                       UniqueConstraint
+                       UniqueConstraint,  create_engine
 from sqlalchemy.sql import select, func, and_
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from sqlalchemy import create_engine
+from sqlalchemy.orm import relationship, sessionmaker, scoped_session
 from datetime import date, datetime, timedelta
-from sqlalchemy.orm import sessionmaker
 from mako.template import Template
 from mako.lookup import TemplateLookup
+import calendar
+import thread
+import threading
+from flask import Flask
+app = Flask(__name__)
 
 DAILY_TEMPLATE = Template(filename='templates/daily.html')
+INDEX_TEMPLATE = Template(filename='templates/index.html')
 
 Base = declarative_base()
  
@@ -64,8 +68,8 @@ engine.raw_connection().connection.text_factory = unicode
 # statements in raw SQL.
 Base.metadata.create_all(engine)
 
-Session = sessionmaker(bind=engine)
-session = Session()
+# Session = scoped_session(sessionmaker(bind=engine))
+# session = Session()
 
 RE_WMCTRL_DESKTOP = re.compile('([0-9]+)\s+([\*\-])\s+(DG\:\ .*)\s+(VP\: .*)\s+(WA\: .*)\s+([0-9x]+)\s+(.*)')
 RE_WMCTRL_OPEN_PROGRAMS = re.compile("([0-9xa-f]+)\s+([\-0-9]+)\s+([0-9]+)\s+([A-Za-z0-9\_\-]+)\s+(.*)")
@@ -75,6 +79,49 @@ RE_XLSCLIENTS = re.compile("Window\ ([0-9a-fx]+)\:\n"
                            "\ \ Name\:\ \ (.*)\n"
                            "\ \ Command\:\ \ (.*)\n"
                            "\ \ Instance\/Class\:  (.*)")
+
+@app.route("/")
+def index():
+    return get_html(template="index.html")
+
+@app.route("/<today>/")
+@app.route("/<today>/daily.html", alias=True)
+def daily(today):
+    print("TODAY:", today)
+
+
+    return get_html(today=today, template="index.html")
+
+def ss():
+    return scoped_session(sessionmaker(bind=engine))
+
+def ssr(created, session):
+    if created:
+        session.remove()
+
+def _session(session=None):
+    if session is not None:
+        return False, session
+    return True, ss()
+
+def _today(today=None):
+    if today is not None:
+        if isinstance(today, (str, unicode)):
+            y, m, d = today.split("-")
+            today = date(int(y), int(m), int(d))
+            print("CONVERTED:", today)
+        return today
+    return date.today()
+
+def _if_created(created, res, session=None):
+    if not created:
+        return res
+    _res = []
+    for r in res:
+        _res.append(r)
+    if session:
+        ssr(created, session)
+    return _res
 
 def print_r(obj):
     pprint.pprint(obj)
@@ -227,12 +274,14 @@ def get_open_windows(desktop_number=None, only_active=False):
 
 
 
-def report(today=None):
+def report(today=None, session=None):
     if today is None:
         today = date.today()
     ESC = chr(27)
     # print "{ESC}[2J{ESC}[0;0H".format(ESC=ESC)
     print "*"*20
+
+    created, session = _session(session)
 
     activity = session.query(ActivityLog.workspace, 
                              ActivityLog.command,
@@ -272,9 +321,12 @@ def report(today=None):
             print "-[ %s ]-" % _date
         print hh_mm_ss(a[2]), a[0]
 
-def workspace_active_data(today=None):
-    if today is None:
-        today = date.today()
+    ssr(created, session)
+
+def workspace_active_data(today=None, session=None):
+    today = _today(today)
+
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date == today, 
                 ActivityLog.command != "idle")
@@ -285,15 +337,17 @@ def workspace_active_data(today=None):
                  .filter(spec)\
                  .group_by(ActivityLog.date, 
                            ActivityLog.workspace)
+
+    res = _if_created(created, res, session)
     return {
         "title": title,
         "cols": cols,
         "data": res
     }
 
-def workspace_command_title_data(today=None):
-    if today is None:
-        today = date.today()
+def workspace_command_title_data(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date == today)
     cols = ['Workspace', 'Command', 'Title', 'Time']
@@ -306,36 +360,37 @@ def workspace_command_title_data(today=None):
                  .group_by(ActivityLog.workspace,
                            ActivityLog.command,
                            ActivityLog.title)
+    res = _if_created(created, res, session)
     return {
         "title": title,
         "cols": cols,
         "data": res
     }
 
-def workspace_command_data(today=None):
-    if today is None:
-        today = date.today()
+def workspace_command_data(today=None, session=None):
+    today = _today(today)
 
     spec = and_(ActivityLog.date == today)
     cols =   ['Workspace', 'Command', 'Time']
     
     title = "Workspace & Command"
+    created, session = _session(session)
     res = session.query(ActivityLog.workspace, 
                         ActivityLog.command,
                         func.sum(ActivityLog.seconds))\
                  .filter(spec)\
                  .group_by(ActivityLog.workspace,
                            ActivityLog.command)
-
+    res = _if_created(created, res, session)
     return {
         "title": title,
         "cols": cols,
         "data": res
     }
 
-def workspace_hour_data_active(today=None):
-    if today is None:
-        today = date.today()
+def workspace_hour_data_active(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date == today,
                 ActivityLog.command != "idle")
@@ -348,6 +403,7 @@ def workspace_hour_data_active(today=None):
                  .group_by(ActivityLog.workspace,
                            ActivityLog.hour)
 
+    res = _if_created(created, res, session)
     return {
         "title": title,
         "cols": cols,
@@ -360,9 +416,9 @@ def make_dashes(cols):
         dashes.append("-"*len(col))
     return dashes
 
-def command_data(today=None):
-    if today is None:
-        today = date.today()
+def command_data(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date == today)
     cols = ['Command', 'Time']
@@ -371,6 +427,8 @@ def command_data(today=None):
                         func.sum(ActivityLog.seconds))\
                  .filter(spec)\
                  .group_by(ActivityLog.command)
+
+    res = _if_created(created, res, session)
     return {
         "title": title,
         "cols": cols,
@@ -418,9 +476,10 @@ def print_row(row, cols):
     return " | ".join(data)
 
 
-def get_week_bounds(today=None):
-    if today is None:
-        today = date.today()
+def get_week_bounds(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
+    # created, session = _session(session)
     # For example, 2004 begins on a Thursday, so the first week of ISO year 2004 begins on Monday, 29 Dec 2003 and ends on Sunday, 4 Jan 2004, so that date(2003, 12, 29).isocalendar() == (2004, 1, 1) and date(2004, 1, 4).isocalendar() == (2004, 1, 7).
 
     one_day = timedelta(days=1)
@@ -451,12 +510,11 @@ def get_week_bounds(today=None):
     last_day = last_day - one_day
     print "first_day:", first_day.strftime("%c")
     print "last_day:", last_day.strftime("%c")
-
+    ssr(created, session)
     return first_day, last_day
 
 def date_key(date, today=None):
-    if today is None:
-        today = date.today()
+    today = _today(today)
 
     if date is None:
         return ""
@@ -467,10 +525,9 @@ def date_key(date, today=None):
     
     return date.strftime("<a href='../%Y-%m-%d/daily.html'><b>%Y-%m-%d %a</b></a>")
 
-def weekly_breakdown(today=None):
-    if today is None:
-        today = date.today()
-
+def weekly_breakdown(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
     low, high = get_week_bounds(today=today)
     print "low:", low
     print "high:", high
@@ -480,15 +537,6 @@ def weekly_breakdown(today=None):
                 ActivityLog.date <= high)
     cols = ['Workspace']
     dates = []
-
-    title = "Weekly - Active"
-    res = session.query(ActivityLog.workspace, 
-                        ActivityLog.date,
-                        func.sum(ActivityLog.seconds))\
-                 .filter(spec)\
-                 .group_by(ActivityLog.workspace,
-                           ActivityLog.date)\
-                 .order_by(ActivityLog.date.asc(), ActivityLog.workspace.asc())
 
     date_data = {}
     numdays = 7
@@ -503,6 +551,15 @@ def weekly_breakdown(today=None):
 
         if _date not in cols:
             cols.append(_date)
+
+    title = "Weekly - Active"
+    res = session.query(ActivityLog.workspace, 
+                        ActivityLog.date,
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace,
+                           ActivityLog.date)\
+                 .order_by(ActivityLog.date.asc(), ActivityLog.workspace.asc())
 
     for r in res:
         _date = date_key(r.date, today)
@@ -557,16 +614,16 @@ def weekly_breakdown(today=None):
     """
     print "COLS"
     print_r(cols)
-
+    ssr(created, session)
     return {
         "title": title,
         "cols": cols,
         "data": date_data_formatted
     }
 
-def get_yesterday(today=None):
-    if today is None:
-        today = date.today()
+def get_yesterday(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date < today)
     res = session.query(ActivityLog.date)\
@@ -577,12 +634,15 @@ def get_yesterday(today=None):
 
     if res:
         print "yesterday:", res[0]
-        return res[0]
+        yesterday = res[0]
+        ssr(created, session)
+        return yesterday
+    ssr(created, session)
     return None
 
-def get_tomorrow(today=None):
-    if today is None:
-        today = date.today()
+def get_tomorrow(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     spec = and_(ActivityLog.date > today)
     res = session.query(ActivityLog.date)\
@@ -593,28 +653,32 @@ def get_tomorrow(today=None):
 
     if res:
         print "tomorrow:", res[0]
-        return res[0]
+        tomorrow = res[0]
+        ssr(created, session)
+        return tomorrow
     # _today = get.today()
     # one_day = timedelta(days=1)
     # tomorrow = today + one_day
+    ssr(created, session)
     return None
 
-def get_next_week(today=None):
-    if today is None:
-        today = date.today()
+def get_next_week(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     next_week = today + timedelta(days=7)
-    first, last = get_week_bounds(next_week)
+    first, last = get_week_bounds(next_week, session=session)
     first = first - timedelta(days=1)
-    day_with_activity = get_tomorrow(first)
+    day_with_activity = get_tomorrow(first, session=session)
+    ssr(created, session)
     return day_with_activity
 
-def get_last_week(today=None):
-    if today is None:
-        today = date.today()
+def get_last_week(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
 
     last_week = today - timedelta(days=7)
-    first, last = get_week_bounds(last_week)
+    first, last = get_week_bounds(last_week, session=session)
     first = first - timedelta(days=1)
     day_with_activity = get_tomorrow(first)
     if day_with_activity == today:
@@ -632,7 +696,8 @@ def weeks_match(date1, date2):
     return date1.strftime("%W") == date2.strftime("%W")
 
 
-def get_all_days_with_activity():
+def get_all_days_with_activity(session=None):
+    created, session = _session(session)
     low_date = session.query(ActivityLog.date)\
                       .order_by(ActivityLog.date.asc())\
                       .first()
@@ -642,49 +707,50 @@ def get_all_days_with_activity():
                       .first()
 
     if not low_date or not high_date:
+        ssr(created, session)
         return []
 
-    low, end_date = get_week_bounds(high_date[0])
+    low, end_date = get_week_bounds(high_date[0], session=session)
 
     days = []
     _date = low_date.date
     while _date <= end_date:
         days.append(_date)
         _date += timedelta(days=1)
+    ssr(created, session)
     return days
 
-
-def write_report(today=None):
-    if today is None:
-        today = date.today()
-
+def get_html(today=None, session=None, template="index.html"):
+    today = _today(today)
+    created, session = _session(session)
+    kwargs = {
+        "today": today, 
+        "session": session
+    }
     by = []
-    by.append(weekly_breakdown(today=today))
-    by.append(workspace_active_data(today=today))
-    by.append(workspace_hour_data_active(today=today))
-    by.append(workspace_command_data(today=today))
-    by.append(command_data(today=today))
-    by.append(workspace_command_title_data(today=today))
+    by.append(weekly_breakdown(**kwargs))
+    by.append(workspace_active_data(**kwargs))
+    by.append(workspace_hour_data_active(**kwargs))
+    by.append(workspace_command_data(**kwargs))
+    by.append(command_data(**kwargs))
+    by.append(workspace_command_title_data(**kwargs))
     # print_r(weekly_breakdown())
 
     mylookup = TemplateLookup(directories=['templates'], 
                               output_encoding='utf-8', 
                               encoding_errors='replace')
 
-    DAILY_TEMPLATE = mylookup.get_template("daily.html")
-
-    
-    
+    _template = mylookup.get_template(template)
 
     yesterday = get_yesterday(today=today)
     tomorrow = get_tomorrow(today=today)
     
     title = "Daily Activity %s" % today
 
-    next_week = get_next_week(today)
-    last_week = get_last_week(today)
+    next_week = get_next_week(today, session=session)
+    last_week = get_last_week(today, session=session)
 
-    html = DAILY_TEMPLATE.render(title=title,
+    html = _template.render(title=title,
                                  hh_mm_ss=hh_mm_ss, 
                                  by=by,
                                  basename=os.path.basename,
@@ -696,6 +762,14 @@ def write_report(today=None):
                                  last_week=last_week,
                                  next_week=next_week)
 
+    return html
+
+
+def write_report(today=None, session=None):
+    today = _today(today)
+    created, session = _session(session)
+    html = get_html(today, session, "daily.html")
+
     report_dir = os.path.join("reports/","%s" % today)
     report_file = os.path.join(report_dir, "daily.html")
     if not os.path.exists(report_dir):
@@ -703,6 +777,7 @@ def write_report(today=None):
 
     with open(report_file, 'w') as fp:
         fp.write(html)
+    ssr(created, session)
 
 
 def hh_mm_ss(s):
@@ -712,7 +787,8 @@ def hh_mm_ss(s):
     s = s - (m * 60)
     return "%02d:%02d:%02d" % (h,m,s)
 
-def log_append_activity(current_activity):
+def log_append_activity(current_activity, session=None):
+    created, session = _session(session)
     # print "send to sql"
     # print "current_activity:"
     # print_r(current_activity)
@@ -748,6 +824,41 @@ def log_append_activity(current_activity):
 
     session.add(activity_log)
     session.commit()
+    ssr(created, session)
+
+def log_loop():
+    now = datetime.now()
+    while True:
+        created, session = _session(None)
+        # write_report()
+        idle_sec = get_idle()
+        active_desktop_number, active_desktop = get_active_desktop()
+        active_windows = get_open_windows(active_desktop_number, True)
+        # print "active_desktop_number:", active_desktop_number
+        if idle_sec >= IDLE_THRESHOLD:
+            # print "idle_sec:", idle_sec
+            log_append_activity({
+                "workspace": active_desktop,
+                "active_window": [{
+                    "command": "idle",
+                    "window_title": "idle",
+                    "command_line": "idle",
+                    "title": "idle"
+                }]
+            }, session=session)
+        else:
+            log_append_activity({
+                "workspace": active_desktop,
+                "active_window": active_windows
+            }, session=session)
+        report(session=session)
+
+        if now.minute != datetime.now().minute:
+            write_report(session=session)
+            now = datetime.now()
+
+        ssr(created, session)
+        sleep(TIME_BETWEEN_CHECKS)
 
 IDLE_THRESHOLD = 90
 DEBUG = False
@@ -762,38 +873,28 @@ REPLACE_RULES = [
 ]
 
 days = get_all_days_with_activity()
+days = []
 for d in days:
     print d
     write_report(d)
 
-now = datetime.now()
 write_report()
-while True:
-    # write_report()
-    idle_sec = get_idle()
-    active_desktop_number, active_desktop = get_active_desktop()
-    active_windows = get_open_windows(active_desktop_number, True)
-    # print "active_desktop_number:", active_desktop_number
-    if idle_sec >= IDLE_THRESHOLD:
-        # print "idle_sec:", idle_sec
-        log_append_activity({
-            "workspace": active_desktop,
-            "active_window": [{
-                "command": "idle",
-                "window_title": "idle",
-                "command_line": "idle",
-                "title": "idle"
-            }]
-        })
-    else:
-        log_append_activity({
-            "workspace": active_desktop,
-            "active_window": active_windows
-        })
-    report()
 
-    if now.minute != datetime.now().minute:
-        write_report()
-        now = datetime.now()
+if 'thread_ident' not in locals():
+    print "STARTING NEW THREAD"
+    thread.start_new_thread(log_loop, ())
+    thread_ident = thread.get_ident()
 
-    sleep(TIME_BETWEEN_CHECKS)
+today = _today()
+cal = calendar.Calendar(6)
+for v in cal.itermonthdates(today.year, today.month):
+    print "V:",v
+print ("sys.argv", sys.argv)
+
+def app_run():
+    app.run(app.run(port=5001, debug=True))
+
+if __name__ == "__main__":
+    thread.start_new_thread(app_run, ())
+    while True:
+        sleep(1)
