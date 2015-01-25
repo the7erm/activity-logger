@@ -725,7 +725,7 @@ def monthly_breakdown(today=None, session=None):
     created, session = _session(session)
     _really_today = _today()
     today = _today(today)
-    link_format = "<div class='{css_class}'><a href='/{date}/' >{day}<br>{count}</a></div>"
+    link_format = "<div class='{css_class}'><a href='/{date}/'>{day}<br>{count}</a></div>"
     title = "Month Activity - %s" % today.strftime("%b %Y")
     cols = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     rows = []

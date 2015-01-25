@@ -1,0 +1,47 @@
+<%inherit file="base.html" />
+
+<%block name="markdown">
+# ${title}
+
+
+% if last_week is not None:
+<a href="/${last_week}/">&lt;&lt;</a>
+% endif
+% if yesterday is not None:
+<a href="/${yesterday}/"> &lt; ${yesterday.strftime("%a %b %d")}</a>
+% endif 
+${today.strftime("%a %b %d")} 
+% if tomorrow is not None:
+<a href="/${tomorrow}/">${tomorrow.strftime("%a %b %d")} &gt;</a>
+% endif
+% if next_week is not None:
+<a href="/${next_week}/">&gt;&gt;</a>
+% endif
+
+% for data in by:
+<a name='${data['title']}'></a><br><br>
+<%text filter="h">
+#### </%text><a href='#${data['title']}'>${data['title']}</a><%text filter="h">
+</%text>
+${" | ".join(data['cols'])}
+${" | ".join(make_dashes(data['cols']))}
+% for row in data['data']:
+${print_row(row, data['cols'])}
+% endfor
+% endfor
+
+% if last_week is not None:
+<a href="/${last_week}/">&lt;&lt;</a>
+% endif
+% if yesterday is not None:
+<a href="/${yesterday}/"> &lt; ${yesterday.strftime("%a %b %d")}</a>
+% endif 
+${today.strftime("%a %b %d")} 
+% if tomorrow is not None:
+<a href="/${tomorrow}/">${tomorrow.strftime("%a %b %d")} &gt;</a>
+% endif
+% if next_week is not None:
+<a href="/${next_week}/">&gt;&gt;</a>
+% endif
+
+</%block>
