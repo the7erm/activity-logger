@@ -1,0 +1,28 @@
+import re
+
+# Number of seconds before the system considers you idle.
+IDLE_THRESHOLD = 120
+
+# Turn on/off Flask debugging
+DEBUG = False
+
+# Number of seconds to sleep() between checks/logging.
+TIME_BETWEEN_CHECKS = 10
+
+# This uses a find, replace format
+# The 1st value is the 'find' and the 2nd is the replace.
+# If you just use a string it's case insensitive.
+# It's important to note that this only changes the title, and not the command
+# that is running.
+REPLACE_RULES = [
+    # Replace all gmail Inbox (#) titles with "Inbox - Gmail"
+    (re.compile("Inbox \(\d+\) .* Gmail"), "Inbox - Gmail"),
+    # If the phrase '(Private Browsing)' is in the window title ... hide it.
+    ("(Private Browsing)", "--hidden--"),
+    ("banking", "--hidden--"),
+    ("my bank name", "--hidden--"),
+    ("bitcoin", "--hidden--"),
+    ("some random program", "--hidden--")
+]
+
+

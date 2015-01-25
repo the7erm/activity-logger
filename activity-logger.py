@@ -1,12 +1,14 @@
 #!/usr/bin/env python2
+import os
+import sys
+os.chdir(sys.path[0])
+
 from subprocess import check_output, CalledProcessError
 from time import sleep
 from math import floor
 from copy import deepcopy
 import re
 import pprint
-import os
-import sys
 from sqlalchemy import Column, ForeignKey, Integer, String, Date, DateTime,\
                        UniqueConstraint,  create_engine
 from sqlalchemy.sql import select, func, and_
@@ -17,14 +19,11 @@ from mako.template import Template
 from mako.lookup import TemplateLookup
 import calendar
 import thread
-
 import pid_handler
 
 from flask import Flask
 app = Flask(__name__)
 
-DAILY_TEMPLATE = Template(filename='templates/daily.html')
-INDEX_TEMPLATE = Template(filename='templates/index.html')
 LOCK_FILE = os.path.join(os.path.expanduser("~"), "activity-logger.lock")
 
 Base = declarative_base()
@@ -922,8 +921,21 @@ REPLACE_RULES = [
     (re.compile("Inbox \(\d+\) .* Gmail"), "Inbox - Gmail"),
     ("(Private Browsing)", "--hidden--"),
     ("banking", "--hidden--"),
-    ("western vista", "--hidden--")
 ]
+
+if os.path.exists('config_local.py'):
+    import config_local
+    if hasattr(config_local, 'IDLE_THRESHOLD'):
+        IDLE_THRESHOLD = config_local.IDLE_THRESHOLD
+    if hasattr(config_local, 'DEBUG'):
+        DEBUG = config_local.DEBUG
+    if hasattr(config_local, 'TIME_BETWEEN_CHECKS'):
+        TIME_BETWEEN_CHECKS = config_local.TIME_BETWEEN_CHECKS
+    if hasattr(config_local, 'REPLACE_RULES'):
+        for rule in config_local.REPLACE_RULES:
+            if rule not in REPLACE_RULES:
+                REPLACE_RULES.append(rule)
+    print "IDLE_THRESHOLD:",IDLE_THRESHOLD
 
 days = get_all_days_with_activity()
 days = []
@@ -950,7 +962,7 @@ print ("sys.argv", sys.argv)
 
 # write_report()
 def app_run():
-    app.run(app.run(port=5001, debug=True))
+    app.run(app.run(port=5001, debug=DEBUG))
 
 if __name__ == "__main__":  
     app_run()

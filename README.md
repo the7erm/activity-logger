@@ -1,102 +1,84 @@
 activity-logger
 ===============
 
-Log what workspace you're on and the active window.
+Log what workspace you're on and the active window.  The `IDLE_THRESHOLD` is currently 90 seconds.  So if you are not typing or moving the mouse for 90 seconds it's considered idle.
 
 # About
-I have multiple clients, and I have each client on their own workspace.  I wanted
-to know where my time was going automatically.  **If someone else was doing this
-to me I'd consider it spyware. So DON'T install it on someone else's account.**
+I have a lot of different workspaces.  Some are for specific clients I work for.  
+I wanted an easy way to keep track of how much time I was really spending on all my contracts.
+I didn't want to do a lot of work.  Clocking in & clocking out.
+**If someone else was doing this to me I'd consider it spyware. So DON'T install 
+it on someone else's account/login.**
 
-# How to use.
+# Installing needed programs
 ``` 
-sudo apt-get install xprintidle wmctrl xdotool python-mako 
+sudo apt-get install xprintidle wmctrl xdotool python-mako
+sudo pip install -r requirements.txt
+git submodule init
+git submodule update
 ```
 
+# Usage
 Open a terminal and run `./activity-logger.py`
 
 Name your workspaces different names, and it'll log what windows is open and for
-how long.  Currently it generates daily reports every minute.
+how long.
 
-It uses http://strapdownjs.com/ to generate the markdown.
+This uses http://strapdownjs.com/ to generate the markdown.
 
+From there you just http://localhost:5001 to view your stats.
 
-## Sample output of daily.html
+# Configuring
+There is not much to configure.  You'll need to create a file called
+`config_local.py` in the same folder as `activity-logger`
 
-Here's a sample of a daily html file that's automatically generated every minute in `reports/`.
+Contents of `config_local.py`
+```
+import re
 
-# Daily Activity 2014-11-28
+# Number of seconds before the system considers you idle.
+IDLE_THRESHOLD = 120
 
-#### Workspace - Active
+# Turn on/off Flask debugging
+DEBUG = False
 
-Workspace | Time
---------- | ----
-Personal | 03:21:55
-Programing | 01:40:20
+# Number of seconds to sleep() between checks/logging.
+TIME_BETWEEN_CHECKS = 10
 
-#### Workspace & Hour - Active
+# This uses a find, replace format
+# The 1st value is the 'find' and the 2nd is the replace.
+# If you just use a string it's case insensitive.
+# It's important to note that this only changes the title, and not the command
+# that is running.
+REPLACE_RULES = [
+    # Replace all gmail Inbox (#) titles with "Inbox - Gmail"
+    (re.compile("Inbox \(\d+\) .* Gmail"), "Inbox - Gmail"),
+    # If the phrase '(Private Browsing)' is in the window title ... hide it.
+    ("(Private Browsing)", "--hidden--"),
+    ("banking", "--hidden--"),
+    ("my bank name", "--hidden--"),
+    ("bitcoin", "--hidden--"),
+    ("some random program", "--hidden--")
+]
+```
 
-Workspace | Hour | Time
---------- | ---- | ----
-Personal | 03:00 | 00:44:45
-Personal | 04:00 | 00:54:35
-Personal | 05:00 | 00:57:15
-Personal | 06:00 | 00:16:40
-Personal | 07:00 | 00:19:50
-Personal | 12:00 | 00:08:40
-Programing | 12:00 | 00:19:00
-Programing | 13:00 | 00:50:40
-Personal | 14:00 | 00:00:10
-Programing | 14:00 | 00:30:40
+# Autostart
+If you want to constantly run this in the background every time you log in I use
+something like the following in a script.
 
-#### Workspace & Command
+Contents of `/home/erm/bin/autostart.sh`
+```
+#!/bin/sh
+cd /home/erm/git/activity-logger
+./activity-logger.py &> /dev/null &
+```
 
-Workspace | Command | Time
---------- | ------- | ----
-Personal | sublime_text | 01:11:10
-Personal | terminator | 00:16:30
-Personal | update-manager | 00:00:10
-Personal | firefox | 01:53:10
-Personal | None | 00:00:10
-Personal | idle | 05:41:45
-Personal | pidgin | 00:00:40
-Personal | fmp-pg.py | 00:00:05
-Programing | sublime_text | 01:04:00
-Programing | gmusicbrowser | 00:00:10
-Programing | terminator | 00:08:00
-Programing | firefox | 00:27:50
-Programing | idle | 00:03:50
-Programing | xfwm4-workspace-settings | 00:00:20
-Client 1 | None | 00:00:05
-Client 2 | None | 00:00:05
+With a desktop entry in `~/.config/autostart`
 
-#### Command
-
-Command | Time
-------- | ----
-sublime_text | 02:15:10
-gmusicbrowser | 00:00:10
-terminator | 00:24:40
-update-manager | 00:00:10
-firefox | 02:21:00
-None | 00:00:30
-idle | 05:45:35
-pidgin | 00:01:00
-fmp-pg.py | 00:00:05
-xfwm4-workspace-settings | 00:00:30
-
-#### Workspace, Command and Title
-
-Workspace | Command | Title | Time
---------- | ------- | ----- | ----
-Personal | sublime_text | activity-logger • (activity-logger) - Sublime Text 2 | 00:04:10
-Personal | sublime_text | untitled (activity-logger) - Sublime Text 2 | 00:00:20
-Personal | sublime_text | ~/git/activity-logger/README.md (activity-logger) - Sublime Text 2 | 00:00:20
-Personal | sublime_text | ~/git/activity-logger/activity-logger.py (activity-logger) - Sublime Text 2 | 00:23:55
-Personal | sublime_text | ~/git/activity-logger/activity-logger.py • (activity-logger) - Sublime Text 2 | 00:14:00
-Personal | sublime_text | ~/git/activity-logger/reports/test.html (activity-logger) - Sublime Text 2 | 00:00:15
-Personal | sublime_text | ~/git/activity-logger/templates/base.html (activity-logger) - Sublime Text 2 | 00:04:35
-Personal | sublime_text | ~/git/activity-logger/templates/base.html • (activity-logger) - Sublime Text 2 | 00:03:45
-Personal | sublime_text | ~/git/activity-logger/templates/daily.html (activity-logger) - Sublime Text 2 | 00:09:35
-Personal | sublime_text | ~/git/activity-logger/templates/daily.html • (activity-logger) - Sublime Text 2 | 00:09:55
-Personal | sublime_text | ~/git/activity-logger/templates/strapdown.js (activity-logger) - Sublime Text 2 | 00:00:20
+Contents of `~/.config/autostart/autostart-sh.desktop`
+```
+[Desktop Entry]
+Name=Autostart
+Comment=Autostart Erm's scripts
+Exec=/home/erm/bin/autostart.sh
+```
