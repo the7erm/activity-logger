@@ -889,8 +889,9 @@ def log_append_activity(current_activity, session=None):
     ssr(created, session)
 
 def log_loop():
-    now = datetime.now()
     while True:
+        now = datetime.now()
+        now = now.replace(microsecond=0)
         print "%s[ %s ]%s" % ("="*50, now, "="*50)
         created, session = _session()
         # write_report()
@@ -915,12 +916,8 @@ def log_loop():
                 "active_window": active_windows
             }, session=session)
         report(session=session)
-
-        if now.minute != datetime.now().minute:
-            # write_report(session=session)
-            now = datetime.now()
-
         ssr(created, session)
+        print "%s[ /%s ]%s" % ("="*50, now, "="*50)
         sleep(TIME_BETWEEN_CHECKS)
 
 IDLE_THRESHOLD = 90
