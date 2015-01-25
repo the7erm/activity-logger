@@ -92,7 +92,6 @@ def index():
 def daily(today):
     print("TODAY:", today)
 
-
     return get_html(today=today, template="index.html")
 
 def ss():
@@ -727,6 +726,7 @@ def monthly_breakdown(today=None, session=None):
     created, session = _session(session)
     _really_today = _today()
     today = _today(today)
+    link_format = "<div class='{css_class}'><a href='/{date}/' >{day}<br>{count}</a></div>"
     title = "Month Activity - %s" % today.strftime("%b %Y")
     cols = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     rows = []
@@ -745,10 +745,20 @@ def monthly_breakdown(today=None, session=None):
         count = ""
         if res > 0:
             count = "(%s)" % res
-        day = "<a href='/%s/'>%s<br>%s</a>" % (t, t.day, count)
+        css_class = ["day"]
         if t == _really_today:
-            day = "<a href='/%s/'>__%s<br>%s__</a>" % (t, t.day, count)
-        row.append(day)
+            css_class.append('really_today')
+        if t == today:
+            css_class.append("today")
+
+        link = link_format.format(
+            date="%s" % t,
+            day="%s" % t.day,
+            count="%s" % count,
+            css_class=" ".join(css_class)
+        )
+
+        row.append(link)
         cnt += 1
 
     rows.append(row)
@@ -762,14 +772,15 @@ def monthly_breakdown(today=None, session=None):
 
 def get_html(today=None, session=None, template="index.html"):
     today = _today(today)
+    really_today = _today()
     created, session = _session(session)
     kwargs = {
         "today": today, 
         "session": session
     }
     by = []
-    by.append(monthly_breakdown(**kwargs))
     by.append(weekly_breakdown(**kwargs))
+    by.append(monthly_breakdown(**kwargs))
     by.append(workspace_active_data(**kwargs))
     by.append(workspace_hour_data_active(**kwargs))
     by.append(workspace_command_data(**kwargs))
@@ -801,7 +812,8 @@ def get_html(today=None, session=None, template="index.html"):
                                  today=today,
                                  tomorrow=tomorrow,
                                  last_week=last_week,
-                                 next_week=next_week)
+                                 next_week=next_week,
+                                 really_today=really_today)
 
     return html
 
@@ -926,6 +938,10 @@ if not pid_handler.is_running():
     print "="*100
     pid_handler.write_pid()
     thread.start_new_thread(log_loop, ())
+else:
+    print "="*100
+    print "NOT STARTING THREAD"
+    print "="*100
 
 today = _today()
 
