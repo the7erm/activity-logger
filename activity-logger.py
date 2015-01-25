@@ -89,8 +89,7 @@ def index():
 @app.route("/<today>/")
 @app.route("/<today>/daily.html", alias=True)
 def daily(today):
-    print("TODAY:", today)
-
+    # print("TODAY:", today)
     return get_html(today=today, template="index.html")
 
 def ss():
@@ -110,7 +109,7 @@ def _today(today=None):
         if isinstance(today, (str, unicode)):
             y, m, d = today.split("-")
             today = date(int(y), int(m), int(d))
-            print("CONVERTED:", today)
+            # print("CONVERTED:", today)
         return today
     return date.today()
 
@@ -124,8 +123,20 @@ def _if_created(created, res, session=None):
         ssr(created, session)
     return _res
 
-def print_r(obj):
-    pprint.pprint(obj)
+def _print(*args, **kwargs):
+    if DEBUG:
+        for arg in args:
+            print arg,
+        print ""
+        for k, v in kwargs:
+            print k,":",v
+
+
+def print_r(obj, ret=False):
+    if not ret:
+        if DEBUG:
+            pprint.pprint(obj)
+    return pprint.pformat(obj)
 
 def get_idle():
     idle_ms = int(safe_check_output(*['xprintidle']))
@@ -280,7 +291,7 @@ def report(today=None, session=None):
         today = date.today()
     ESC = chr(27)
     # print "{ESC}[2J{ESC}[0;0H".format(ESC=ESC)
-    print "*"*20
+    _print ("*"*20)
 
     created, session = _session(session)
 
@@ -486,7 +497,7 @@ def get_week_bounds(today=None, session=None):
     one_day = timedelta(days=1)
     first_day = deepcopy(today)
     last_day = deepcopy(today)
-    print "today:", today
+    _print ("today:", today)
     if first_day.strftime("%w") == "0":
         # The first day is Sunday
         return first_day, (last_day + timedelta(days=6))
@@ -495,22 +506,22 @@ def get_week_bounds(today=None, session=None):
         # count down days until the week changes
         first_day = first_day - one_day
 
-    print (first_day - one_day).strftime("%W") == today.strftime("%W"),\
-          (first_day - one_day).strftime("%W"),' == ', today.strftime("%W")
+    _print ((first_day - one_day).strftime("%W") == today.strftime("%W"),\
+            (first_day - one_day).strftime("%W"),' == ', today.strftime("%W"))
 
     while weeks_match((last_day + one_day), today):
         # count up days until the week changes
         last_day = last_day + one_day
 
-    print (last_day + one_day).strftime("%W") == today.strftime("%W"), \
-          (last_day + one_day).strftime("%W"),' == ', today.strftime("%W")
+    _print ((last_day + one_day).strftime("%W") == today.strftime("%W"),
+            (last_day + one_day).strftime("%W"),' == ', today.strftime("%W"))
 
     if first_day.strftime("%w") != "0":
         first_day = first_day - one_day
 
     last_day = last_day - one_day
-    print "first_day:", first_day.strftime("%c")
-    print "last_day:", last_day.strftime("%c")
+    _print("first_day:", first_day.strftime("%c"))
+    _print("last_day:", last_day.strftime("%c"))
     ssr(created, session)
     return first_day, last_day
 
@@ -530,8 +541,8 @@ def weekly_breakdown(today=None, session=None):
     today = _today(today)
     created, session = _session(session)
     low, high = get_week_bounds(today=today)
-    print "low:", low
-    print "high:", high
+    _print("low:", low)
+    _print("high:", high)
 
     spec = and_(ActivityLog.command != "idle",
                 ActivityLog.date >= low,
@@ -543,7 +554,7 @@ def weekly_breakdown(today=None, session=None):
     numdays = 7
     date_list = [low + timedelta(days=x) for x in range(0, numdays)]
     date_list = sorted(date_list)
-    print "date_list:", date_list
+    _print ("date_list:", date_list)
 
     for d in date_list:
         _date = date_key(d, today)
@@ -597,12 +608,12 @@ def weekly_breakdown(today=None, session=None):
         row = [workspace]
         keys = date_data[workspace].keys()
         keys = sorted(keys)
-        print "keys:", 
+        _print ("keys:")
         print_r(keys)
         for _date in keys:
             row.append(date_data[workspace][_date])
         date_data_formatted.append(row)
-        print " | ".join(row)
+        _print (" | ".join(row))
 
     print_r(date_data_formatted)
     """
@@ -613,7 +624,7 @@ def weekly_breakdown(today=None, session=None):
     workspace 2 |
     workspace 3 |
     """
-    print "COLS"
+    _print ("COLS")
     print_r(cols)
     ssr(created, session)
     return {
@@ -634,7 +645,7 @@ def get_yesterday(today=None, session=None):
                  .first()
 
     if res:
-        print "yesterday:", res[0]
+        _print ("yesterday:", res[0])
         yesterday = res[0]
         ssr(created, session)
         return yesterday
@@ -653,7 +664,7 @@ def get_tomorrow(today=None, session=None):
                  .first()
 
     if res:
-        print "tomorrow:", res[0]
+        _print ("tomorrow:", res[0])
         tomorrow = res[0]
         ssr(created, session)
         return tomorrow
@@ -734,7 +745,6 @@ def monthly_breakdown(today=None, session=None):
     cal = calendar.Calendar(6)
     cnt = 0
     for t in cal.itermonthdates(today.year, today.month):
-        print("t:", t, type(t))
         spec = and_(ActivityLog.date == t)
         res = session.query(ActivityLog.date)\
                      .filter(spec).count()
@@ -881,7 +891,8 @@ def log_append_activity(current_activity, session=None):
 def log_loop():
     now = datetime.now()
     while True:
-        created, session = _session(None)
+        print "%s[ %s ]%s" % ("="*50, now, "="*50)
+        created, session = _session()
         # write_report()
         idle_sec = get_idle()
         active_desktop_number, active_desktop = get_active_desktop()
@@ -906,7 +917,7 @@ def log_loop():
         report(session=session)
 
         if now.minute != datetime.now().minute:
-            write_report(session=session)
+            # write_report(session=session)
             now = datetime.now()
 
         ssr(created, session)
@@ -935,29 +946,33 @@ if os.path.exists('config_local.py'):
         for rule in config_local.REPLACE_RULES:
             if rule not in REPLACE_RULES:
                 REPLACE_RULES.append(rule)
-    print "IDLE_THRESHOLD:",IDLE_THRESHOLD
+    _print ("IDLE_THRESHOLD:",IDLE_THRESHOLD)
+    _print ("DEBUG:", DEBUG)
+    _print ("TIME_BETWEEN_CHECKS:", TIME_BETWEEN_CHECKS)
 
+"""
 days = get_all_days_with_activity()
 days = []
 for d in days:
     print d
-    write_report(d)
+    # write_report(d)
+"""
 
 pid_handler.pid_file = LOCK_FILE
 if not pid_handler.is_running():
-    print "="*100
-    print "STARTING THREAD"
-    print "="*100
+    _print("="*100)
+    _print("STARTING THREAD")
+    _print ("="*100)
     pid_handler.write_pid()
     thread.start_new_thread(log_loop, ())
 else:
-    print "="*100
-    print "NOT STARTING THREAD"
-    print "="*100
+    _print("="*100)
+    _print("NOT STARTING THREAD")
+    _print ("="*100)
 
 today = _today()
 
-print ("sys.argv", sys.argv)
+_print ("sys.argv", sys.argv)
 
 
 # write_report()
