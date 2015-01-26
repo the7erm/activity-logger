@@ -974,7 +974,7 @@ _print ("sys.argv", sys.argv)
 
 # write_report()
 def app_run():
-    app.run(app.run(port=5001, debug=DEBUG))
+    app.run(port=5001, debug=DEBUG)
 
 if __name__ == "__main__":  
     app_run()
