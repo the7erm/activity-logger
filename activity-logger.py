@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 import os
 import sys
+import traceback
 os.chdir(sys.path[0])
 
 from subprocess import check_output, CalledProcessError
@@ -73,8 +74,10 @@ Base.metadata.create_all(engine)
 # Session = scoped_session(sessionmaker(bind=engine))
 # session = Session()
 
-RE_WMCTRL_DESKTOP = re.compile('([0-9]+)\s+([\*\-])\s+(DG\:\ .*)\s+(VP\: .*)\s+(WA\: .*)\s+([0-9x]+)\s+(.*)')
-RE_WMCTRL_OPEN_PROGRAMS = re.compile("([0-9xa-f]+)\s+([\-0-9]+)\s+([0-9]+)\s+([A-Za-z0-9\_\-]+)\s+(.*)")
+RE_WMCTRL_DESKTOP = re.compile("([0-9]+)\s+([\*\-])\s+(DG\:\ .*)\s+(VP\: .*)"
+                               "\s+(WA\: .*)\s+([0-9x]+)\s+(.*)")
+RE_WMCTRL_OPEN_PROGRAMS = re.compile("([0-9xa-f]+)\s+([\-0-9]+)\s+([0-9]+)\s+"
+                                     "([A-Za-z0-9\_\-]+)\s+(.*)")
 
 RE_XLSCLIENTS = re.compile("Window\ ([0-9a-fx]+)\:\n" 
                            "\ \ Machine\:\ \ (.*)\n"
@@ -183,8 +186,8 @@ def get_xlsclients():
 def safe_check_output(*args, **kwargs):
     try:
         output = check_output(args)
-    except CalledProcessError, err:
-        print "CalledProcessError: %s %s" % (err, args)
+    except Exception as e:
+        traceback.print_exc()
         return ""
 
     return output
@@ -564,6 +567,8 @@ def weekly_breakdown(today=None, session=None):
         if _date not in cols:
             cols.append(_date)
 
+    cols.append('Total')
+
     title = "Weekly - Active"
     res = session.query(ActivityLog.workspace, 
                         ActivityLog.date,
@@ -573,6 +578,7 @@ def weekly_breakdown(today=None, session=None):
                            ActivityLog.date)\
                  .order_by(ActivityLog.date.asc(), ActivityLog.workspace.asc())
 
+    totals = {}
     for r in res:
         _date = date_key(r.date, today)
         if r.workspace not in date_data:
@@ -583,6 +589,9 @@ def weekly_breakdown(today=None, session=None):
         if r.date == today:
             date_data[r.workspace][_date] = "<b>%s</b>" % (hh_mm_ss(r[2]), )
 
+        if r.workspace not in totals:
+            totals[r.workspace] = 0
+        totals[r.workspace] += r[2]
 
     for workspace in date_data:
         for _date in dates:
@@ -593,6 +602,7 @@ def weekly_breakdown(today=None, session=None):
             _date = date_key(d, today)
             if _date not in date_data[workspace]:
                 date_data[workspace][_date] = " "
+
 
     """
     {u'Hacking': {'2014-11-28 Fri': '00:00:40', '2014-11-29 Sat': ' '},
@@ -612,6 +622,7 @@ def weekly_breakdown(today=None, session=None):
         print_r(keys)
         for _date in keys:
             row.append(date_data[workspace][_date])
+        row.append(hh_mm_ss(totals[workspace]))
         date_data_formatted.append(row)
         _print (" | ".join(row))
 
@@ -745,15 +756,19 @@ def monthly_breakdown(today=None, session=None):
     cal = calendar.Calendar(6)
     cnt = 0
     for t in cal.itermonthdates(today.year, today.month):
-        spec = and_(ActivityLog.date == t)
-        res = session.query(ActivityLog.date)\
-                     .filter(spec).count()
+        spec = and_(ActivityLog.date == t,
+                    ActivityLog.command != 'idle')
+        res = session.query(ActivityLog.date,
+                            func.sum(ActivityLog.seconds))\
+                     .filter(spec)\
+                     .first()
         if cnt % 7 == 0 and len(row) != 0:
             rows.append(row)
             row = []
         count = ""
-        if res > 0:
-            count = "(%s)" % res
+        print("RES:",res)
+        if res[1] > 0:
+            count = hh_mm_ss(res[1])
         css_class = ["day"]
         if t == _really_today:
             css_class.append('really_today')
@@ -778,6 +793,43 @@ def monthly_breakdown(today=None, session=None):
         "data": rows
     }
 
+def monthly_summary(today=None, session=None):
+    _print("Monthly Summary")
+    created, session = _session(session)
+    today = _today(today)
+    first = None
+    last = None
+    cal = calendar.Calendar(6)
+    for t in cal.itermonthdates(today.year, today.month):
+        if first is None:
+            first = t
+        last = t
+    _print("first:", first)
+    _print("last:", last)
+    
+    spec = and_(ActivityLog.date >= first,
+                ActivityLog.date <= last)
+    res = session.query(ActivityLog.workspace, 
+                        func.sum(ActivityLog.seconds))\
+                 .filter(spec)\
+                 .group_by(ActivityLog.workspace)\
+                 .order_by(ActivityLog.workspace.asc())
+
+    cols = ['Workspace', 'total']
+    rows = []
+    for r in res:
+        row = [r[0], hh_mm_ss(r[1])]
+        rows.append(row)
+
+    title = "Summary %s" % today.strftime("%b %Y")
+    ssr(created, session)
+    return {
+        "title": title,
+        "cols": cols,
+        "data": rows
+    }
+
+
 
 def get_html(today=None, session=None, template="index.html"):
     today = _today(today)
@@ -787,9 +839,17 @@ def get_html(today=None, session=None, template="index.html"):
         "today": today, 
         "session": session
     }
+    last_month = {
+        "today": today - timedelta(days=31), 
+        "session": session
+    }
+
     by = []
     by.append(weekly_breakdown(**kwargs))
     by.append(monthly_breakdown(**kwargs))
+    by.append(monthly_summary(**kwargs))
+    by.append(monthly_breakdown(**last_month))
+    by.append(monthly_summary(**last_month))
     by.append(workspace_active_data(**kwargs))
     by.append(workspace_hour_data_active(**kwargs))
     by.append(workspace_command_data(**kwargs))
