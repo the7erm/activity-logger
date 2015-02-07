@@ -262,9 +262,13 @@ def get_open_windows(desktop_number=None, only_active=False):
             cmd_path = os.path.join(proc_path, 'cmdline')
             realpath = os.path.realpath(exe_path)
             command_line = "error"
-            with open(cmd_path,'r') as fp:
-                command_line = fp.read()
-                command_line = command_line.rstrip("\x00")
+            try:
+                with open(cmd_path,'r') as fp:
+                    command_line = fp.read()
+                    command_line = command_line.rstrip("\x00")
+            except Exception as e:
+                command_line = ""
+                traceback.print_exc()
             
             command = os.path.basename(realpath)
             
@@ -951,6 +955,7 @@ def log_append_activity(current_activity, session=None):
 def log_loop():
     while True:
         now = datetime.now()
+        sleep_until = now + timedelta(seconds=TIME_BETWEEN_CHECKS)
         now = now.replace(microsecond=0)
         print "%s[ %s ]%s" % ("="*50, now, "="*50)
         created, session = _session()
@@ -978,7 +983,10 @@ def log_loop():
         report(session=session)
         ssr(created, session)
         print "%s[ /%s ]%s" % ("="*50, now, "="*50)
-        sleep(TIME_BETWEEN_CHECKS)
+        time_to_sleep = sleep_until - datetime.now()
+        if time_to_sleep.total_seconds() > 0:
+            _print("time_to_sleep:", time_to_sleep.total_seconds())
+            sleep(time_to_sleep.total_seconds())
 
 IDLE_THRESHOLD = 90
 DEBUG = False
