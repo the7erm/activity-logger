@@ -751,7 +751,7 @@ def monthly_breakdown(today=None, session=None):
     created, session = _session(session)
     _really_today = _today()
     today = _today(today)
-    link_format = "<div class='{css_class}'><a href='/{date}/'>{day}<br>{count}</a></div>"
+    link_format = "<div class='{css_class}'><a href='/{date}/'>{day}<br>{day_data}</a></div>"
     title = "Month Activity - %s" % today.strftime("%b %Y")
     cols = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     rows = []
@@ -763,16 +763,23 @@ def monthly_breakdown(today=None, session=None):
         spec = and_(ActivityLog.date == t,
                     ActivityLog.command != 'idle')
         res = session.query(ActivityLog.date,
+                            ActivityLog.workspace,
                             func.sum(ActivityLog.seconds))\
                      .filter(spec)\
-                     .first()
+                     .group_by(ActivityLog.workspace)\
+                     .order_by(ActivityLog.workspace)
         if cnt % 7 == 0 and len(row) != 0:
             rows.append(row)
             row = []
-        count = ""
+        day_data = []
         print("RES:",res)
-        if res[1] > 0:
-            count = hh_mm_ss(res[1])
+        for r in res:
+            if r[2] > 0:
+                contents = "{workspace} <span class='pull-right'>{hh_mm_ss}</span>".format(
+                    workspace=r[1], 
+                    hh_mm_ss=hh_mm_ss(r[2])
+                )
+                day_data.append(contents)
         css_class = ["day"]
         if t == _really_today:
             css_class.append('really_today')
@@ -782,7 +789,7 @@ def monthly_breakdown(today=None, session=None):
         link = link_format.format(
             date="%s" % t,
             day="%s" % t.day,
-            count="%s" % count,
+            day_data="%s" % "<br>".join(day_data),
             css_class=" ".join(css_class)
         )
 
